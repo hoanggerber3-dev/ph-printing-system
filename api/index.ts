@@ -3,19 +3,17 @@ import multer from "multer";
 import { PrismaClient } from "@prisma/client";
 import { put } from "@vercel/blob";
 
-// Khởi tạo Prisma Client (để ngoài để tái sử dụng kết nối)
 const prisma = new PrismaClient();
 const app = express();
 
 app.use(express.json());
 
-// Cấu hình Multer lưu tạm file vào bộ nhớ (Memory Storage) để upload lên Blob
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
-// --- CÁC ĐƯỜNG DẪN API (ROUTES) ---
+// --- API ROUTES ---
 
-// 1. Gửi đơn hàng mới (Dùng cho khách hàng)
+// 1. Gửi đơn hàng mới
 app.post("/api/orders", upload.array("files"), async (req: any, res: any) => {
   try {
     const { customerName, customerContact, notes, itemNotes } = req.body;
@@ -29,7 +27,6 @@ app.post("/api/orders", upload.array("files"), async (req: any, res: any) => {
       parsedItemNotes = [];
     }
 
-    // Tải hình ảnh lên Vercel Blob
     const uploadedFiles = await Promise.all(
       files.map(async (file, index) => {
         let filePath = "";
@@ -39,7 +36,6 @@ app.post("/api/orders", upload.array("files"), async (req: any, res: any) => {
           });
           filePath = blob.url;
         } else {
-          // Fallback đường dẫn giả lập nếu chưa có Token (chỉ dùng khi test)
           filePath = `https://placehold.co/600x400?text=${encodeURIComponent(file.originalname)}`;
         }
 
@@ -50,47 +46,37 @@ app.post("/api/orders", upload.array("files"), async (req: any, res: any) => {
       })
     );
 
-    // Lưu dữ liệu vào Database Neon (PostgreSQL)
     const order = await prisma.order.create({
       data: {
         id: orderId,
         customer_name: customerName,
         customer_contact: customerContact,
         notes: notes,
-        items: {
-          create: uploadedFiles
-        }
+        items: { create: uploadedFiles }
       }
     });
 
     res.status(201).json({ orderId: order.id, success: true });
   } catch (error: any) {
-    console.error("Lỗi tạo đơn hàng:", error);
-    res.status(500).json({ error: "Không thể gửi đơn hàng. Vui lòng kiểm tra lại kết nối Database." });
+    res.status(500).json({ error: "Lỗi hệ thống khi tạo đơn." });
   }
 });
 
-// 2. Tra cứu đơn hàng (Dùng cho khách hàng theo dõi tình trạng)
+// 2. Tra cứu đơn hàng (Sửa lỗi 404 tra cứu)
 app.get("/api/orders/:id", async (req: any, res: any) => {
   try {
-    const { id } = req.params;
     const order = await prisma.order.findUnique({
-      where: { id: id },
+      where: { id: req.params.id },
       include: { items: true }
     });
-
-    if (!order) {
-      return res.status(404).json({ error: "Không tìm thấy mã đơn hàng này." });
-    }
-
+    if (!order) return res.status(404).json({ error: "Không tìm thấy đơn hàng." });
     res.json(order);
   } catch (error) {
-    console.error("Lỗi tra cứu:", error);
-    res.status(500).json({ error: "Lỗi hệ thống khi tra cứu dữ liệu." });
+    res.status(500).json({ error: "Lỗi tra cứu." });
   }
 });
 
-// 3. Lấy toàn bộ đơn hàng (Dùng cho trang Dashboard Admin)
+// 3. Lấy danh sách đơn hàng cho Admin
 app.get("/api/admin/orders", async (req: any, res: any) => {
   try {
     const orders = await prisma.order.findMany({
@@ -99,44 +85,36 @@ app.get("/api/admin/orders", async (req: any, res: any) => {
     });
     res.json(orders);
   } catch (error) {
-    res.status(500).json({ error: "Không thể lấy dữ liệu Admin." });
+    res.status(500).json({ error: "Lỗi lấy dữ liệu admin." });
   }
 });
 
-// 4. Cập nhật trạng thái đơn hàng (Dùng cho Admin duyệt đơn)
+// 4. Cập nhật trạng thái (QUEUE, START, FINISH)
 app.patch("/api/admin/orders/:id", async (req: any, res: any) => {
   try {
-    const { id } = req.params;
     const { status } = req.body;
     await prisma.order.update({
-      where: { id: id },
+      where: { id: req.params.id },
       data: { status }
     });
     res.json({ success: true });
   } catch (error) {
-    res.status(500).json({ error: "Lỗi khi cập nhật trạng thái đơn." });
+    res.status(500).json({ error: "Lỗi cập nhật trạng thái." });
   }
 });
-// 5. Xóa đơn hàng (Chỉ dành cho Admin)
+
+// 5. CHỨC NĂNG XÓA ĐƠN HÀNG (Mới cập nhật)
 app.delete("/api/admin/orders/:id", async (req: any, res: any) => {
   try {
     const { id } = req.params;
-
-    // Xóa tất cả các items liên quan trước (do ràng buộc database)
-    await prisma.orderItem.deleteMany({
-      where: { order_id: id }
-    });
-
-    // Sau đó xóa đơn hàng
-    await prisma.order.delete({
-      where: { id: id }
-    });
-
-    res.json({ success: true, message: "Đã xóa đơn hàng thành công." });
+    // Xóa ảnh liên quan trước
+    await prisma.orderItem.deleteMany({ where: { order_id: id } });
+    // Xóa đơn hàng chính
+    await prisma.order.delete({ where: { id: id } });
+    res.json({ success: true });
   } catch (error) {
-    console.error("Delete Error:", error);
     res.status(500).json({ error: "Lỗi khi xóa đơn hàng." });
   }
 });
-// --- DÒNG QUAN TRỌNG NHẤT ĐỂ CHẠY TRÊN VERCEL ---
+
 export default app;
