@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Clock, MessageSquare, ExternalLink, Filter, RotateCcw, CheckCircle, Package, Timer } from "lucide-react";
+import { Clock, MessageSquare, ExternalLink, Filter, RotateCcw, CheckCircle, Package, Timer, Trash2 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
 interface Order {
@@ -42,6 +42,25 @@ export default function DashboardPage() {
       }
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  // CHỨC NĂNG XÓA MỚI CẬP NHẬT
+  const deleteOrder = async (id: string) => {
+    if (!window.confirm("Bạn có chắc chắn muốn xóa vĩnh viễn đơn hàng này?")) return;
+    
+    try {
+      const resp = await fetch(`/api/admin/orders/${id}`, {
+        method: "DELETE",
+      });
+      if (resp.ok) {
+        setOrders(prev => prev.filter(o => o.id !== id));
+      } else {
+        alert("Không thể xóa đơn hàng này.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Lỗi khi xóa đơn hàng.");
     }
   };
 
@@ -167,7 +186,7 @@ export default function DashboardPage() {
                       </button>
                     ))}
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
                     <a 
                       href={order.items[0]?.file_path} 
                       target="_blank" 
@@ -176,6 +195,13 @@ export default function DashboardPage() {
                     >
                       <ExternalLink size={18} />
                     </a>
+                    <button 
+                      onClick={() => deleteOrder(order.id)}
+                      className="text-slate-400 hover:text-red-600 transition-colors p-1"
+                      title="Delete order"
+                    >
+                      <Trash2 size={18} />
+                    </button>
                   </div>
                 </div>
               </motion.div>
