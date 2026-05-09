@@ -1,23 +1,21 @@
 import express from "express";
-import path from "path";
-import fs from "fs";
 import multer from "multer";
 import { PrismaClient } from "@prisma/client";
 import { put } from "@vercel/blob";
 
-// Khởi tạo Prisma (Nên để ngoài để tận dụng kết nối lại)
+// Khởi tạo Prisma Client (để ngoài để tái sử dụng kết nối)
 const prisma = new PrismaClient();
 const app = express();
 
 app.use(express.json());
 
-// Cấu hình Multer để nhận file qua bộ nhớ đệm
+// Cấu hình Multer lưu tạm file vào bộ nhớ (Memory Storage) để upload lên Blob
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
-// --- CÁC ĐƯỜNG DẪN API ---
+// --- CÁC ĐƯỜNG DẪN API (ROUTES) ---
 
-// 1. Tạo đơn hàng mới
+// 1. Gửi đơn hàng mới (Dùng cho khách hàng)
 app.post("/api/orders", upload.array("files"), async (req: any, res: any) => {
   try {
     const { customerName, customerContact, notes, itemNotes } = req.body;
@@ -31,7 +29,7 @@ app.post("/api/orders", upload.array("files"), async (req: any, res: any) => {
       parsedItemNotes = [];
     }
 
-    // Tải ảnh lên Vercel Blob
+    // Tải hình ảnh lên Vercel Blob
     const uploadedFiles = await Promise.all(
       files.map(async (file, index) => {
         let filePath = "";
@@ -41,8 +39,8 @@ app.post("/api/orders", upload.array("files"), async (req: any, res: any) => {
           });
           filePath = blob.url;
         } else {
-          // Local fallback (chỉ dùng cho dev)
-          filePath = `/uploads/${file.originalname}`;
+          // Fallback đường dẫn giả lập nếu chưa có Token (chỉ dùng khi test)
+          filePath = `https://placehold.co/600x400?text=${encodeURIComponent(file.originalname)}`;
         }
 
         return {
@@ -52,7 +50,7 @@ app.post("/api/orders", upload.array("files"), async (req: any, res: any) => {
       })
     );
 
-    // Lưu vào Database Neon
+    // Lưu dữ liệu vào Database Neon (PostgreSQL)
     const order = await prisma.order.create({
       data: {
         id: orderId,
@@ -66,39 +64,59 @@ app.post("/api/orders", upload.array("files"), async (req: any, res: any) => {
     });
 
     res.status(201).json({ orderId: order.id, success: true });
-  } catch (error) {
-    console.error("Error:", error);
-    res.status(500).json({ error: "Lỗi kết nối Database hoặc Blob." });
+  } catch (error: any) {
+    console.error("Lỗi tạo đơn hàng:", error);
+    res.status(500).json({ error: "Không thể gửi đơn hàng. Vui lòng kiểm tra lại kết nối Database." });
   }
 });
 
-// 2. Lấy danh sách đơn hàng (Cho Admin)
-app.get("/api/admin/orders", async (req, res) => {
+// 2. Tra cứu đơn hàng (Dùng cho khách hàng theo dõi tình trạng)
+app.get("/api/orders/:id", async (req: any, res: any) => {
+  try {
+    const { id } = req.params;
+    const order = await prisma.order.findUnique({
+      where: { id: id },
+      include: { items: true }
+    });
+
+    if (!order) {
+      return res.status(404).json({ error: "Không tìm thấy mã đơn hàng này." });
+    }
+
+    res.json(order);
+  } catch (error) {
+    console.error("Lỗi tra cứu:", error);
+    res.status(500).json({ error: "Lỗi hệ thống khi tra cứu dữ liệu." });
+  }
+});
+
+// 3. Lấy toàn bộ đơn hàng (Dùng cho trang Dashboard Admin)
+app.get("/api/admin/orders", async (req: any, res: any) => {
   try {
     const orders = await prisma.order.findMany({
-      orderBy: { created_at: 'desc' }, // Đơn mới lên đầu
+      orderBy: { created_at: 'desc' },
       include: { items: true }
     });
     res.json(orders);
   } catch (error) {
-    res.status(500).json({ error: "Không thể lấy danh sách đơn hàng." });
+    res.status(500).json({ error: "Không thể lấy dữ liệu Admin." });
   }
 });
 
-// 3. Cập nhật trạng thái đơn hàng
-app.patch("/api/admin/orders/:id", async (req, res) => {
+// 4. Cập nhật trạng thái đơn hàng (Dùng cho Admin duyệt đơn)
+app.patch("/api/admin/orders/:id", async (req: any, res: any) => {
   try {
+    const { id } = req.params;
     const { status } = req.body;
     await prisma.order.update({
-      where: { id: req.params.id },
+      where: { id: id },
       data: { status }
     });
     res.json({ success: true });
   } catch (error) {
-    res.status(500).json({ error: "Lỗi cập nhật." });
+    res.status(500).json({ error: "Lỗi khi cập nhật trạng thái đơn." });
   }
 });
 
 // --- DÒNG QUAN TRỌNG NHẤT ĐỂ CHẠY TRÊN VERCEL ---
-// Xóa app.listen() và thay bằng export này:
 export default app;
