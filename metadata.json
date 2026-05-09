@@ -1,0 +1,6 @@
+{
+  "name": "PH Order & PET System",
+  "description": "Hệ thống quản lý đơn hàng chuyên dụng PH.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["Full-stack Management", "Real-time Tracking", "SQLite Integration"]
+}
