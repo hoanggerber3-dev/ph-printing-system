@@ -45,7 +45,6 @@ export default function DashboardPage() {
     }
   };
 
-  // CHỨC NĂNG XÓA MỚI CẬP NHẬT
   const deleteOrder = async (id: string) => {
     if (!window.confirm("Bạn có chắc chắn muốn xóa vĩnh viễn đơn hàng này?")) return;
     
@@ -62,6 +61,13 @@ export default function DashboardPage() {
       console.error(err);
       alert("Lỗi khi xóa đơn hàng.");
     }
+  };
+
+  // Hàm để mở tất cả các ảnh cùng lúc
+  const openAllImages = (items: any[]) => {
+    items.forEach(item => {
+      window.open(item.file_path, '_blank');
+    });
   };
 
   useEffect(() => {
@@ -157,14 +163,28 @@ export default function DashboardPage() {
                     </div>
                   )}
 
+                  {/* Cập nhật khu vực hiển thị ảnh: Click vào từng ảnh để xem gốc */}
                   <div className="grid grid-cols-4 gap-2 mb-4">
                     {order.items.map((item, idx) => (
-                      <div key={idx} className="group relative aspect-square rounded-xl overflow-hidden border border-slate-200 bg-slate-50">
-                        <img src={item.file_path} className="h-full w-full object-cover" alt="Job" />
+                      <a 
+                        key={idx} 
+                        href={item.file_path} 
+                        target="_blank" 
+                        rel="noreferrer"
+                        className="group relative aspect-square rounded-xl overflow-hidden border border-slate-200 bg-slate-50 cursor-pointer block"
+                        title="Xem ảnh gốc"
+                      >
+                        <img 
+                          src={item.file_path} 
+                          className="h-full w-full object-cover transition-transform group-hover:scale-110" 
+                          alt="In PET PH" 
+                        />
                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center p-2">
-                          <p className="text-[9px] text-white text-center leading-tight">{item.item_note || "No notes"}</p>
+                          <p className="text-[9px] text-white text-center leading-tight">
+                            {item.item_note || "Click xem gốc"}
+                          </p>
                         </div>
-                      </div>
+                      </a>
                     ))}
                   </div>
                 </div>
@@ -187,14 +207,14 @@ export default function DashboardPage() {
                     ))}
                   </div>
                   <div className="flex items-center gap-2">
-                    <a 
-                      href={order.items[0]?.file_path} 
-                      target="_blank" 
+                    {/* Cập nhật nút: Mở tất cả ảnh trong tab mới */}
+                    <button 
+                      onClick={() => openAllImages(order.items)}
                       className="text-slate-400 hover:text-indigo-600 transition-colors p-1"
-                      title="View first item"
+                      title={`Mở tất cả ${order.items.length} ảnh`}
                     >
                       <ExternalLink size={18} />
-                    </a>
+                    </button>
                     <button 
                       onClick={() => deleteOrder(order.id)}
                       className="text-slate-400 hover:text-red-600 transition-colors p-1"
