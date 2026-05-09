@@ -117,6 +117,26 @@ app.patch("/api/admin/orders/:id", async (req: any, res: any) => {
     res.status(500).json({ error: "Lỗi khi cập nhật trạng thái đơn." });
   }
 });
+// 5. Xóa đơn hàng (Chỉ dành cho Admin)
+app.delete("/api/admin/orders/:id", async (req: any, res: any) => {
+  try {
+    const { id } = req.params;
 
+    // Xóa tất cả các items liên quan trước (do ràng buộc database)
+    await prisma.orderItem.deleteMany({
+      where: { order_id: id }
+    });
+
+    // Sau đó xóa đơn hàng
+    await prisma.order.delete({
+      where: { id: id }
+    });
+
+    res.json({ success: true, message: "Đã xóa đơn hàng thành công." });
+  } catch (error) {
+    console.error("Delete Error:", error);
+    res.status(500).json({ error: "Lỗi khi xóa đơn hàng." });
+  }
+});
 // --- DÒNG QUAN TRỌNG NHẤT ĐỂ CHẠY TRÊN VERCEL ---
 export default app;
