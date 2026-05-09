@@ -1,24 +1,23 @@
 {
-  "name": "react-example",
+  "name": "ph-printing-system",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "tsx server.ts",
-    "build": "vite build",
+    "dev": "vite",
+    "build": "prisma generate && vite build",
     "start": "node server.ts",
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit"
   },
   "dependencies": {
-    "@vercel/node": "latest"
     "@google/genai": "^1.29.0",
     "@prisma/client": "^6.4.1",
     "@tailwindcss/vite": "^4.1.14",
     "@vercel/blob": "^2.3.3",
+    "@vercel/node": "latest",
     "@vitejs/plugin-react": "^5.0.4",
-    "better-sqlite3": "^12.9.0",
     "clsx": "^2.1.1",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
